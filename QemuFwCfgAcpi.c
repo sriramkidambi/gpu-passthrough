@@ -55,6 +55,13 @@ typedef struct {
 **/
 STATIC
 INTN
+/**
+ * @brief Compares a standalone ASCII key string to the file name in a BLOB structure.
+ *
+ * @param StandaloneKey Pointer to a NUL-terminated ASCII string key.
+ * @param UserStruct Pointer to a BLOB structure containing the file name.
+ * @return INTN Zero if the keys match, a nonzero value otherwise.
+ */
 EFIAPI
 BlobKeyCompare (
   IN CONST VOID  *StandaloneKey,
@@ -82,6 +89,15 @@ BlobKeyCompare (
 **/
 STATIC
 INTN
+/**
+ * @brief Compares two BLOB structures by their file name keys.
+ *
+ * This function compares the file name of the first BLOB structure to the file name of the second BLOB structure using ASCII string comparison.
+ *
+ * @param UserStruct1 Pointer to the first BLOB structure.
+ * @param UserStruct2 Pointer to the second BLOB structure.
+ * @return INTN Negative if UserStruct1's file name is less, zero if equal, positive if greater.
+ */
 EFIAPI
 BlobCompare (
   IN CONST VOID  *UserStruct1,
@@ -111,6 +127,13 @@ BlobCompare (
 **/
 STATIC
 INTN
+/**
+ * @brief Compares two pointers by their unsigned address values.
+ *
+ * @param Pointer1 First pointer to compare.
+ * @param Pointer2 Second pointer to compare.
+ * @return int Returns 0 if the pointers are equal, -1 if Pointer1 is less than Pointer2, or 1 if Pointer1 is greater than Pointer2.
+ */
 EFIAPI
 PointerCompare (
   IN CONST VOID  *Pointer1,
@@ -143,6 +166,13 @@ PointerCompare (
 **/
 STATIC
 INTN
+/**
+ * @brief Compares two ASCII strings for equality.
+ *
+ * Performs a case-sensitive comparison of two NUL-terminated ASCII strings.
+ *
+ * @return Zero if the strings are identical; a positive or negative value indicating the difference between the first differing characters otherwise.
+ */
 EFIAPI
 AsciiStringCompare (
   IN CONST VOID  *AsciiString1,
@@ -153,15 +183,12 @@ AsciiStringCompare (
 }
 
 /**
-  Release the ORDERED_COLLECTION structure populated by
-  CollectAllocationsRestrictedTo32Bit() (below).
-
-  This function may be called by CollectAllocationsRestrictedTo32Bit() itself,
-  on the error path.
-
-  @param[in] AllocationsRestrictedTo32Bit  The ORDERED_COLLECTION structure to
-                                           release.
-**/
+ * @brief Releases all resources associated with a collection of 32-bit restricted allocations.
+ *
+ * Frees all entries and uninitializes the ORDERED_COLLECTION used to track blobs that must be allocated below 4GB.
+ *
+ * @param[in] AllocationsRestrictedTo32Bit The collection to release.
+ */
 STATIC
 VOID
 ReleaseAllocationsRestrictedTo32Bit (
@@ -182,32 +209,18 @@ ReleaseAllocationsRestrictedTo32Bit (
 }
 
 /**
-  Iterate over the linker/loader script, and collect the names of the fw_cfg
-  blobs that are referenced by QEMU_LOADER_ADD_POINTER.PointeeFile fields, such
-  that QEMU_LOADER_ADD_POINTER.PointerSize is less than 8. This means that the
-  pointee blob's address will have to be patched into a narrower-than-8 byte
-  pointer field, hence the pointee blob must not be allocated from 64-bit
-  address space.
-
-  @param[out] AllocationsRestrictedTo32Bit  The ORDERED_COLLECTION structure
-                                            linking (not copying / owning) such
-                                            QEMU_LOADER_ADD_POINTER.PointeeFile
-                                            fields that name the blobs
-                                            restricted from 64-bit allocation.
-
-  @param[in] LoaderStart                    Points to the first entry in the
-                                            linker/loader script.
-
-  @param[in] LoaderEnd                      Points one past the last entry in
-                                            the linker/loader script.
-
-  @retval EFI_SUCCESS           AllocationsRestrictedTo32Bit has been
-                                populated.
-
-  @retval EFI_OUT_OF_RESOURCES  Memory allocation failed.
-
-  @retval EFI_PROTOCOL_ERROR    Invalid linker/loader script contents.
-**/
+ * @brief Collects names of blobs requiring 32-bit address allocation from the loader script.
+ *
+ * Iterates over the QEMU loader script entries and identifies blobs referenced by QEMU_LOADER_ADD_POINTER commands with a pointer size less than 8 bytes. These blobs must be allocated below 4GB to ensure pointer patching is valid. The function populates an ORDERED_COLLECTION with the names of such blobs.
+ *
+ * @param[out] AllocationsRestrictedTo32Bit Receives a collection of blob names restricted to 32-bit allocation.
+ * @param[in] LoaderStart Pointer to the first entry in the loader script.
+ * @param[in] LoaderEnd Pointer one past the last entry in the loader script.
+ *
+ * @retval EFI_SUCCESS The collection was populated successfully.
+ * @retval EFI_OUT_OF_RESOURCES Memory allocation failed.
+ * @retval EFI_PROTOCOL_ERROR The loader script contains malformed entries.
+ */
 STATIC
 EFI_STATUS
 CollectAllocationsRestrictedTo32Bit (
@@ -316,6 +329,16 @@ RollBack:
 **/
 STATIC
 EFI_STATUS
+/**
+ * @brief Allocates memory for a fw_cfg blob and loads its data.
+ *
+ * Processes a QEMU_LOADER_ALLOCATE command by validating the file name and alignment, locating the corresponding fw_cfg file, allocating ACPI NVS memory (with 32-bit address restriction if required), reading the blob data from fw_cfg, and tracking the allocation. Returns an error if the input is malformed, the blob is duplicated, alignment is unsupported, or allocation fails.
+ *
+ * @param Allocate Pointer to the QEMU_LOADER_ALLOCATE command structure describing the allocation.
+ * @param Tracker Collection tracking all allocated blobs.
+ * @param AllocationsRestrictedTo32Bit Collection of blob names that must be allocated below 4GB.
+ * @return EFI_STATUS EFI_SUCCESS on success, or error code on failure.
+ */
 EFIAPI
 ProcessCmdAllocate (
   IN CONST QEMU_LOADER_ALLOCATE  *Allocate,
@@ -464,6 +487,15 @@ FreePages:
 **/
 STATIC
 EFI_STATUS
+/**
+ * @brief Relocates a pointer field within a blob to reference another blob's memory.
+ *
+ * Processes a QEMU_LOADER_ADD_POINTER command by updating a pointer field in the specified blob to point to the absolute address of another blob, offset by the original pointer value. Validates file names, pointer sizes, offsets, and ensures the relocated pointer is representable. Returns an error if any validation fails.
+ *
+ * @param AddPointer The loader command describing the pointer relocation.
+ * @param Tracker The collection of blobs referenced by file name.
+ * @return EFI_STATUS EFI_SUCCESS on success, or EFI_PROTOCOL_ERROR on malformed input or invalid references.
+ */
 EFIAPI
 ProcessCmdAddPointer (
   IN CONST QEMU_LOADER_ADD_POINTER  *AddPointer,
@@ -576,6 +608,14 @@ ProcessCmdAddPointer (
 **/
 STATIC
 EFI_STATUS
+/**
+ * @brief Computes and stores an 8-bit checksum over a specified range in a tracked blob.
+ *
+ * Validates the checksum command, locates the referenced blob, computes the checksum over the given range, and writes the result at the specified offset within the blob.
+ *
+ * @retval EFI_SUCCESS            The checksum was computed and stored successfully.
+ * @retval EFI_PROTOCOL_ERROR     The command is malformed, references an invalid blob, or specifies an invalid range.
+ */
 EFIAPI
 ProcessCmdAddChecksum (
   IN CONST QEMU_LOADER_ADD_CHECKSUM  *AddChecksum,
@@ -633,36 +673,18 @@ ProcessCmdAddChecksum (
 }
 
 /**
-  Process a QEMU_LOADER_WRITE_POINTER command.
-
-  @param[in] WritePointer   The QEMU_LOADER_WRITE_POINTER command to process.
-
-  @param[in] Tracker        The ORDERED_COLLECTION tracking the BLOB user
-                            structures created thus far.
-
-  @param[in,out] S3Context  The S3_CONTEXT object capturing the fw_cfg actions
-                            of successfully processed QEMU_LOADER_WRITE_POINTER
-                            commands, to be replayed at S3 resume. S3Context
-                            may be NULL if S3 is disabled.
-
-  @retval EFI_PROTOCOL_ERROR  Malformed fw_cfg file name(s) have been found in
-                              WritePointer. Or, the WritePointer command
-                              references a file unknown to Tracker or the
-                              fw_cfg directory. Or, the pointer object to
-                              rewrite has invalid location, size, or initial
-                              relative value. Or, the pointer value to store
-                              does not fit in the given pointer size.
-
-  @retval EFI_SUCCESS         The pointer object inside the writeable fw_cfg
-                              file has been written. If S3Context is not NULL,
-                              then WritePointer has been condensed into
-                              S3Context.
-
-  @return                     Error codes propagated from
-                              SaveCondensedWritePointerToS3Context(). The
-                              pointer object inside the writeable fw_cfg file
-                              has not been written.
-**/
+ * @brief Processes a QEMU_LOADER_WRITE_POINTER command to update a pointer in a writable fw_cfg file.
+ *
+ * Validates the command, locates the target fw_cfg file and referenced blob, computes the absolute pointer value, and writes it into the specified offset in the fw_cfg file. If S3 resume is enabled, the pointer write is also recorded for replay after S3 resume. Marks the referenced blob as unreleasable after the pointer is written.
+ *
+ * @param[in] WritePointer   The QEMU_LOADER_WRITE_POINTER command to process.
+ * @param[in] Tracker        The collection tracking BLOB structures created so far.
+ * @param[in,out] S3Context  The S3_CONTEXT for capturing pointer writes for S3 resume, or NULL if S3 is disabled.
+ *
+ * @retval EFI_SUCCESS           The pointer was written successfully, and recorded for S3 resume if applicable.
+ * @retval EFI_PROTOCOL_ERROR    The command is malformed, references unknown files or blobs, or specifies invalid pointer parameters.
+ * @return                       Error codes from SaveCondensedWritePointerToS3Context() if S3 context recording fails.
+ */
 STATIC
 EFI_STATUS
 ProcessCmdWritePointer (
@@ -788,15 +810,12 @@ ProcessCmdWritePointer (
 }
 
 /**
-  Undo a QEMU_LOADER_WRITE_POINTER command.
-
-  This function revokes (zeroes out) a guest memory reference communicated to
-  QEMU earlier. The caller is responsible for invoking this function only on
-  such QEMU_LOADER_WRITE_POINTER commands that have been successfully processed
-  by ProcessCmdWritePointer().
-
-  @param[in] WritePointer  The QEMU_LOADER_WRITE_POINTER command to undo.
-**/
+ * @brief Reverts a QEMU_LOADER_WRITE_POINTER command by zeroing the pointer field in the specified fw_cfg file.
+ *
+ * This function clears a previously written guest memory pointer in a fw_cfg file, effectively undoing the effect of a QEMU_LOADER_WRITE_POINTER command that was successfully processed earlier.
+ *
+ * @param[in] WritePointer Pointer to the QEMU_LOADER_WRITE_POINTER command structure describing the pointer to be zeroed.
+ */
 STATIC
 VOID
 UndoCmdWritePointer (
@@ -897,6 +916,19 @@ UndoCmdWritePointer (
 **/
 STATIC
 EFI_STATUS
+/**
+ * @brief Processes a QEMU_LOADER_ADD_POINTER command in the second pass to identify and install ACPI tables.
+ *
+ * Examines the pointer target specified by the loader command to determine if it references a valid ACPI table or FACS structure. If a valid table is found (excluding RSDT and XSDT), installs it using the EFI_ACPI_TABLE_PROTOCOL and tracks the installation to prevent duplicates. Marks blobs as opaque if no ACPI table is found. Handles resource limits and avoids reprocessing already seen pointers.
+ *
+ * @param AddPointer The loader command describing the pointer relocation.
+ * @param Tracker Collection of all tracked blobs.
+ * @param AcpiProtocol ACPI table protocol for table installation.
+ * @param InstalledKey Array for storing installed table keys.
+ * @param NumInstalled Pointer to the count of installed tables; incremented on success.
+ * @param SeenPointers Collection tracking already processed pointer values.
+ * @return EFI_SUCCESS on success, or an appropriate EFI error code on failure.
+ */
 EFIAPI
 Process2ndPassCmdAddPointer (
   IN     CONST QEMU_LOADER_ADD_POINTER  *AddPointer,
@@ -1075,27 +1107,18 @@ RollbackSeenPointer:
 }
 
 /**
-  Download, process, and install ACPI table data from the QEMU loader
-  interface.
-
-  @param[in] AcpiProtocol  The ACPI table protocol used to install tables.
-
-  @retval  EFI_UNSUPPORTED       Firmware configuration is unavailable, or QEMU
-                                 loader command with unsupported parameters
-                                 has been found.
-
-  @retval  EFI_NOT_FOUND         The host doesn't export the required fw_cfg
-                                 files.
-
-  @retval  EFI_OUT_OF_RESOURCES  Memory allocation failed, or more than
-                                 INSTALLED_TABLES_MAX tables found.
-
-  @retval  EFI_PROTOCOL_ERROR    Found invalid fw_cfg contents.
-
-  @return                        Status codes returned by
-                                 AcpiProtocol->InstallAcpiTable().
-
-**/
+ * @brief Downloads, processes, and installs ACPI tables from QEMU firmware configuration.
+ *
+ * Retrieves the QEMU loader script from fw_cfg, parses and executes its commands to allocate memory, patch pointers, compute checksums, and install ACPI tables using the provided ACPI table protocol. Handles S3 resume support, error rollback, and injects an additional SSDT table with VROM data.
+ *
+ * @param[in] AcpiProtocol The ACPI table protocol used to install tables.
+ *
+ * @retval EFI_UNSUPPORTED        Firmware configuration is unavailable or an unsupported loader command is encountered.
+ * @retval EFI_NOT_FOUND          Required fw_cfg files are missing.
+ * @retval EFI_OUT_OF_RESOURCES   Memory allocation failed or too many tables found.
+ * @retval EFI_PROTOCOL_ERROR     Invalid fw_cfg contents detected.
+ * @return Status codes from AcpiProtocol->InstallAcpiTable().
+ */
 EFI_STATUS
 EFIAPI
 InstallQemuFwCfgTables (
